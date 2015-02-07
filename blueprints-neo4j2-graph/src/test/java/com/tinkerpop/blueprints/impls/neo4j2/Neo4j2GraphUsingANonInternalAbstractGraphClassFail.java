@@ -14,7 +14,9 @@ import org.neo4j.graphdb.traversal.BidirectionalTraversalDescription;
 import org.neo4j.graphdb.traversal.TraversalDescription;
 import org.neo4j.kernel.GraphDatabaseAPI;
 import org.neo4j.kernel.TransactionBuilder;
-import org.neo4j.kernel.impl.nioneo.store.StoreId;
+import org.neo4j.kernel.impl.store.StoreId;
+
+import java.util.Map;
 
 import static org.junit.Assert.assertThat;
 
@@ -174,6 +176,31 @@ public class Neo4j2GraphUsingANonInternalAbstractGraphClassFail {
         public BidirectionalTraversalDescription bidirectionalTraversalDescription() {
             return getLazy().bidirectionalTraversalDescription();
         }
+
+        @Override
+        public ResourceIterator<Node> findNodes(Label label, String s, Object o) {
+            return getLazy().findNodes(label,s,o);
+        }
+
+        @Override
+        public Node findNode(Label label, String s, Object o) {
+            return getLazy().findNode(label, s, o);
+        }
+
+        @Override
+        public ResourceIterator<Node> findNodes(Label label) {
+            return getLazy().findNodes(label);
+        }
+
+        @Override
+        public Result execute(String s) throws QueryExecutionException {
+            return getLazy().execute(s);
+        }
+
+        @Override
+        public Result execute(String s, Map<String, Object> map) throws QueryExecutionException {
+            return getLazy().execute(s, map);
+        }
     }
 
     private class LazyLoadableGraphAPI extends LazyLoadedGraphDatabase implements GraphDatabaseAPI {
@@ -190,17 +217,9 @@ public class Neo4j2GraphUsingANonInternalAbstractGraphClassFail {
         }
 
         @Override
-        @Deprecated
         public StoreId storeId() {
-            return ((GraphDatabaseAPI) getLazy()).storeId();
+            return ((GraphDatabaseAPI)getLazy()).storeId();
         }
-
-        @Override
-        @Deprecated
-        public TransactionBuilder tx() {
-            return ((GraphDatabaseAPI) getLazy()).tx();
-        }
-
     }
 
     /**

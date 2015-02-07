@@ -32,13 +32,12 @@ import org.neo4j.graphdb.factory.GraphDatabaseFactory;
 import org.neo4j.graphdb.index.AutoIndexer;
 import org.neo4j.graphdb.index.RelationshipIndex;
 import org.neo4j.kernel.GraphDatabaseAPI;
+import org.neo4j.kernel.TopLevelTransaction;
+import org.neo4j.kernel.api.KernelTransaction;
 import org.neo4j.kernel.impl.core.NodeManager;
-import org.neo4j.kernel.impl.transaction.AbstractTransactionManager;
+import org.neo4j.kernel.impl.core.ThreadToStatementContextBridge;
 import org.neo4j.tooling.GlobalGraphOperations;
 
-import javax.transaction.Status;
-import javax.transaction.SystemException;
-import javax.transaction.TransactionManager;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -103,8 +102,7 @@ public class Neo4j2Graph implements TransactionalGraph, IndexableGraph, KeyIndex
         FEATURES.supportsThreadIsolatedTransactions = true;
     }
 
-    private final TransactionManager transactionManager;
-    private final ExecutionEngine cypher;
+    private ThreadToStatementContextBridge ctx;
 
     protected boolean checkElementsInTransaction() {
         if (this.tx.get() == null) {
@@ -139,9 +137,6 @@ public class Neo4j2Graph implements TransactionalGraph, IndexableGraph, KeyIndex
     public Neo4j2Graph(final GraphDatabaseService rawGraph) {
         this.rawGraph = rawGraph;
 
-        transactionManager = ((GraphDatabaseAPI) rawGraph).getDependencyResolver().resolveDependency(TransactionManager.class);
-
-        cypher = new ExecutionEngine(rawGraph);
         init();
     }
 
@@ -153,9 +148,6 @@ public class Neo4j2Graph implements TransactionalGraph, IndexableGraph, KeyIndex
             else
                 this.rawGraph = builder.newGraphDatabase();
 
-            transactionManager = ((GraphDatabaseAPI) rawGraph).getDependencyResolver().resolveDependency(TransactionManager.class);
-            cypher = new ExecutionEngine(rawGraph);
-
             init();
 
         } catch (Exception e) {
@@ -166,6 +158,7 @@ public class Neo4j2Graph implements TransactionalGraph, IndexableGraph, KeyIndex
     }
 
     protected void init() {
+        ctx = ((GraphDatabaseAPI)rawGraph).getDependencyResolver().resolveDependency(ThreadToStatementContextBridge.class);
         this.loadKeyIndices();
     }
 
@@ -239,7 +232,7 @@ public class Neo4j2Graph implements TransactionalGraph, IndexableGraph, KeyIndex
     }
 
     private PropertyContainer getGraphProperties() {
-        return ((GraphDatabaseAPI) this.rawGraph).getDependencyResolver().resolveDependency(NodeManager.class).getGraphProperties();
+        return ((GraphDatabaseAPI) this.rawGraph).getDependencyResolver().resolveDependency(NodeManager.class).newGraphProperties();
     }
 
     private void logNotGraphDatabaseAPI() {
@@ -532,7 +525,7 @@ public class Neo4j2Graph implements TransactionalGraph, IndexableGraph, KeyIndex
         try {
             tx.get().success();
         } finally {
-            tx.get().finish();
+            tx.get().close();
             tx.remove();
         }
     }
@@ -543,12 +536,12 @@ public class Neo4j2Graph implements TransactionalGraph, IndexableGraph, KeyIndex
         }
 
         try {
-            javax.transaction.Transaction t = transactionManager.getTransaction();
-            if (t == null || t.getStatus() == Status.STATUS_ROLLEDBACK) {
+            KernelTransaction t = ctx.getKernelTransactionBoundToThisThread(false);
+            if (t == null || !t.isOpen()) {
                 return;
             }
-            tx.get().failure();
-        } catch (SystemException e) {
+            this.tx.get().failure();
+        } catch (Exception e) {
             throw new RuntimeException(e);
         } finally {
             tx.get().close();
@@ -595,13 +588,13 @@ public class Neo4j2Graph implements TransactionalGraph, IndexableGraph, KeyIndex
     }
 
     public Iterator<Map<String,Object>> query(String query, Map<String,Object> params) {
-        return cypher.execute(query,params==null ? Collections.<String,Object>emptyMap() : params).iterator();
+        return rawGraph.execute(query, params == null ? Collections.<String,Object>emptyMap() : params);
     }
 
     public boolean nodeIsDeleted(long nodeId) {
-        return ((AbstractTransactionManager) transactionManager).getTransactionState().nodeIsDeleted(nodeId);
+        return !ctx.instance().readOperations().nodeExists(nodeId);
     }
-    public boolean relationshipIsDeleted(long nodeId) {
-        return ((AbstractTransactionManager) transactionManager).getTransactionState().relationshipIsDeleted(nodeId);
+    public boolean relationshipIsDeleted(long relId) {
+        return !ctx.instance().readOperations().relationshipExists(relId);
     }
 }

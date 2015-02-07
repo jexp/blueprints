@@ -28,6 +28,7 @@ public class Neo4j2VertexIterable<T extends Vertex> implements CloseableIterable
     }
 
     public Iterator<Neo4j2Vertex> iterator() {
+        graph.autoStartTransaction(false);
         return new Iterator<Neo4j2Vertex>() {
             private final Iterator<Node> itty = nodes.iterator();
             private Node nextNode = null;
