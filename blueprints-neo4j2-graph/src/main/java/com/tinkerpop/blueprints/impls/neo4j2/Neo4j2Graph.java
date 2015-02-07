@@ -530,11 +530,13 @@ public class Neo4j2Graph implements TransactionalGraph, IndexableGraph, KeyIndex
         }
 
         try {
-            KernelTransaction t = ctx.getKernelTransactionBoundToThisThread(false);
-            if (t == null || !t.isOpen()) {
+            javax.transaction.Transaction t = transactionManager.getTransaction();
+            if (t == null || t.getStatus() == Status.STATUS_COMMITTED || t.getStatus() == Status.STATUS_COMMITTING) {
                 return;
             }
             tx.get().success();
+        } catch (SystemException e) {
+            throw new RuntimeException(e);
         } finally {
             tx.get().finish();
             tx.remove();
