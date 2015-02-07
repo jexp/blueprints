@@ -1,16 +1,6 @@
 package com.tinkerpop.blueprints.impls.neo4j2;
 
-import com.tinkerpop.blueprints.EdgeTestSuite;
-import com.tinkerpop.blueprints.Graph;
-import com.tinkerpop.blueprints.GraphQueryTestSuite;
-import com.tinkerpop.blueprints.GraphTestSuite;
-import com.tinkerpop.blueprints.IndexTestSuite;
-import com.tinkerpop.blueprints.IndexableGraphTestSuite;
-import com.tinkerpop.blueprints.KeyIndexableGraphTestSuite;
-import com.tinkerpop.blueprints.TestSuite;
-import com.tinkerpop.blueprints.TransactionalGraphTestSuite;
-import com.tinkerpop.blueprints.VertexQueryTestSuite;
-import com.tinkerpop.blueprints.VertexTestSuite;
+import com.tinkerpop.blueprints.*;
 import com.tinkerpop.blueprints.impls.GraphTest;
 import com.tinkerpop.blueprints.util.io.gml.GMLReaderTestSuite;
 import com.tinkerpop.blueprints.util.io.graphml.GraphMLReaderTestSuite;
@@ -116,7 +106,7 @@ public class Neo4j2GraphTest extends GraphTest {
 
     public Graph generateGraph(final String graphDirectoryName) {
         final String directory = getWorkingDirectory();
-        Neo4j2Graph graph = new Neo4j2Graph(directory + "/" + graphDirectoryName);
+        Neo4j2Graph graph = new Neo4j2Graph(directory + "/" + graphDirectoryName,java.util.Collections.singletonMap("cache_type", "strong"));
         graph.setCheckElementsInTransaction(true);
 
         // for clean shutdown later
@@ -146,6 +136,7 @@ public class Neo4j2GraphTest extends GraphTest {
                 } finally {
                     // clean shutdown w/o leaking resources even in case of AssertionErrors
                     if (testGraph.get() != null) {
+                        ((TransactionalGraph)testGraph.get()).rollback();
                         testGraph.get().shutdown();
                     }
                     deleteDirectory(new File(directory));
